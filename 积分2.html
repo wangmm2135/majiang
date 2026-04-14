@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天津麻将冠军大赛管理系统</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Microsoft YaHei", sans-serif; background-color: #064e3b; color: white; overflow-x: hidden; }
+        .深绿背景 { background: radial-gradient(circle at center, #065f46 0%, #022c22 100%); min-h: 100vh; }
+        .磨砂面板 { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); }
+        .自定义滚动条::-webkit-scrollbar { width: 5px; }
+        .自定义滚动条::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        input[type="number"]::-webkit-inner-spin-button { display: none; }
+        .动画弹出 { animation: spring 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes spring { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        
+        /* 动态光效 */
+        .流光金 {
+            background: linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,69,0,0.2) 50%, rgba(255,215,0,0.1) 100%);
+            background-size: 200% 200%;
+            animation: shine 3s infinite;
+        }
+        @keyframes shine { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        /* 滚动字幕动画 */
+        .滚动动画 {
+            animation: marquee 30s linear infinite;
+            display: inline-block;
+            padding-left: 100%;
+            white-space: nowrap;
+        }
+        @keyframes marquee {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-100%, 0); }
+        }
+        .滚动容器:hover .滚动动画 {
+            animation-play-state: paused;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- 图标组件 ---
+        const 图标_编辑 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>;
+        const 图标_删除 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>;
+        const 图标_下载 = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+        const 图标_撤销 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>;
+        const 图标_详情 = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>;
+        const 图标_礼物 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>;
+        const 图标_上传 = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+        const 图标_清空 = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
+        const 图标_爱心 = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>;
+        const 图标_喇叭 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>;
+        const 图标_魔法 = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>;
+
+        // --- 核心段位配置 ---
+        const 获取段位信息 = (胜率数值, 总对局数) => {
+            if (总对局数 < 7) return { 
+                等级: '暂无', 称号: '初出茅庐', 
+                样式: 'border-l-4 border-white/20 bg-white/5', 
+                文字色: 'text-white/40',
+                徽章: null
+            };
+
+            if (胜率数值 > 48) return { 
+                等级: 'S', 称号: '满贯天尊', 
+                样式: 'border-l-4 border-yellow-500 流光金 shadow-[0_4px_20px_rgba(234,179,8,0.3)]', 
+                文字色: 'text-yellow-300',
+                徽章: '👑'
+            };
+            if (胜率数值 >= 40) return { 
+                等级: 'A', 称号: '招财雀神', 
+                样式: 'border-l-4 border-purple-500 bg-gradient-to-r from-purple-900/40 to-purple-800/20 shadow-purple-900/50', 
+                文字色: 'text-purple-300',
+                徽章: '🀄️'
+            };
+            if (胜率数值 >= 30) return { 
+                等级: 'B', 称号: '好运闲家', 
+                样式: 'border-l-4 border-blue-500 bg-gradient-to-r from-blue-900/40 to-blue-800/20', 
+                文字色: 'text-blue-300',
+                徽章: '🎲'
+            };
+            if (胜率数值 >= 25) return { 
+                等级: 'C', 称号: '随缘摸鱼', 
+                样式: 'border-l-4 border-emerald-500 bg-gradient-to-r from-emerald-900/40 to-emerald-800/20', 
+                文字色: 'text-emerald-300',
+                徽章: '🐟'
+            };
+            if (胜率数值 >= 20) return { 
+                等级: 'D', 称号: '替补健将', 
+                样式: 'border-l-4 border-gray-500 bg-white/5', 
+                文字色: 'text-gray-400',
+                徽章: '🛡️'
+            };
+            return { 
+                等级: 'F', 称号: '麻坛菜鸡', 
+                样式: 'border-l-4 border-stone-600 bg-stone-900/60 grayscale', 
+                文字色: 'text-stone-500',
+                徽章: '🐔'
+            };
+        };
+
+        // --- 互动动画组件 (尊贵烟花文字版) ---
+        const 互动动画层 = ({ 配置, 结束回调 }) => {
+            const canvasRef = useRef(null);
+
+            useEffect(() => {
+                if (配置 && 配置.type === 'FIREWORK') {
+                    const canvas = canvasRef.current;
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+
+                    const random = (min, max) => Math.random() * (max - min) + min;
+                    const 目标姓名 = 配置.payload || "麻将冠军";
+
+                    // --- 1. 文字转点阵算法 ---
+                    const 获取文字点阵 = (text) => {
+                        const 虚拟Canvas = document.createElement('canvas');
+                        虚拟Canvas.width = canvas.width;
+                        虚拟Canvas.height = canvas.height;
+                        const vCtx = 虚拟Canvas.getContext('2d');
+                        
+                        // 动态计算最大字号
+                        const fontSize = Math.min(200, canvas.width / (text.length * 1.5));
+                        vCtx.font = `900 ${fontSize}px "Microsoft YaHei", sans-serif`;
+                        vCtx.fillStyle = '#ffffff';
+                        vCtx.textAlign = 'center';
+                        vCtx.textBaseline = 'middle';
+                        vCtx.fillText(text, canvas.width / 2, canvas.height / 3);
+
+                        const imgData = vCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+                        const points = [];
+                        const 采样率 = 4; // 越小粒子越密
+
+                        for (let y = 0; y < canvas.height; y += 采样率) {
+                            for (let x = 0; x < canvas.width; x += 采样率) {
+                                const i = (y * canvas.width + x) * 4;
+                                if (imgData[i + 3] > 128) {
+                                    points.push({ x, y });
+                                }
+                            }
+                        }
+                        return points;
+                    };
+
+                    let fireworks = [];
+                    let particles = [];
+                    let animationId;
+                    let startTime = Date.now();
+                    const 总时长 = 18000; // 延长到18秒
+                    const 疯狂时刻 = 6000; // 前6秒疯狂乱炸
+                    const 清场时刻 = 8000; // 第8秒准备发射文字弹
+                    let 文字弹已发射 = false;
+
+                    // 烟花弹类
+                    class Firework {
+                        constructor(sx, sy, tx, ty, isTextShell = false) {
+                            this.x = sx; this.y = sy;
+                            this.sx = sx; this.sy = sy;
+                            this.tx = tx; this.ty = ty;
+                            this.isTextShell = isTextShell;
+                            this.distanceToTarget = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
+                            this.distanceTraveled = 0;
+                            this.coordinates = [];
+                            this.coordinateCount = 3;
+                            while(this.coordinateCount--) this.coordinates.push([this.x, this.y]);
+                            this.angle = Math.atan2(ty - sy, tx - sx);
+                            this.speed = 2;
+                            this.acceleration = 1.05;
+                            this.brightness = isTextShell ? 80 : random(50, 70);
+                            this.hue = isTextShell ? 45 : random(0, 360); // 文字弹是纯金色
+                        }
+
+                        update(index) {
+                            this.coordinates.pop();
+                            this.coordinates.unshift([this.x, this.y]);
+                            this.speed *= this.acceleration;
+                            const vx = Math.cos(this.angle) * this.speed;
+                            const vy = Math.sin(this.angle) * this.speed;
+                            this.distanceTraveled = Math.sqrt(Math.pow(this.x - this.sx, 2) + Math.pow(this.y - this.sy, 2));
+
+                            if (this.distanceTraveled >= this.distanceToTarget) {
+                                if (this.isTextShell) {
+                                    createNameParticles(this.tx, this.ty);
+                                } else {
+                                    createExplosion(this.tx, this.ty, this.hue);
+                                }
+                                fireworks.splice(index, 1);
+                            } else {
+                                this.x += vx; this.y += vy;
+                            }
+                        }
+
+                        draw() {
+                            ctx.beginPath();
+                            ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+                            ctx.lineTo(this.x, this.y);
+                            ctx.strokeStyle = `hsl(${this.hue}, 100%, ${this.brightness}%)`;
+                            ctx.lineWidth = this.isTextShell ? 4 : 2;
+                            ctx.stroke();
+                        }
+                    }
+
+                    // 粒子类
+                    class Particle {
+                        constructor(x, y, hue, isText = false, targetX, targetY) {
+                            this.x = x; this.y = y;
+                            this.hue = hue;
+                            this.isText = isText;
+                            this.coordinates = [];
+                            this.coordinateCount = 5;
+                            while(this.coordinateCount--) this.coordinates.push([this.x, this.y]);
+                            
+                            this.angle = random(0, Math.PI * 2);
+                            this.friction = isText ? 0.92 : 0.95;
+                            this.gravity = isText ? 0 : 1; // 文字粒子无重力
+                            this.speed = isText ? random(1, 10) : random(1, 20);
+                            this.brightness = isText ? random(80, 100) : random(50, 80);
+                            this.alpha = 1;
+                            this.decay = isText ? random(0.001, 0.005) : random(0.015, 0.03); // 文字粒子消失极慢
+                            
+                            if (isText) {
+                                // 文字粒子逻辑：从爆炸中心飞向目标文字坐标
+                                this.targetX = targetX;
+                                this.targetY = targetY;
+                                this.x = targetX;
+                                this.y = targetY;
+                                this.speed = 0;
+                            }
+                        }
+
+                        update(index) {
+                            this.coordinates.pop();
+                            this.coordinates.unshift([this.x, this.y]);
+                            
+                            if (!this.isText) {
+                                this.speed *= this.friction;
+                                this.x += Math.cos(this.angle) * this.speed;
+                                this.y += Math.sin(this.angle) * this.speed + this.gravity;
+                            } else {
+                                this.brightness = random(50, 100);
+                                if(Math.random() < 0.1) this.x += random(-1, 1); // 微动
+                            }
+                            
+                            this.alpha -= this.decay;
+                            if (this.alpha <= this.decay) particles.splice(index, 1);
+                        }
+
+                        draw() {
+                            ctx.beginPath();
+                            ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+                            ctx.lineTo(this.x, this.y);
+                            ctx.strokeStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`;
+                            ctx.lineWidth = this.isText ? 3 : 1;
+                            ctx.stroke();
+                        }
+                    }
+
+                    function createExplosion(x, y, hue) {
+                        let count = 100;
+                        while(count--) particles.push(new Particle(x, y, hue));
+                    }
+
+                    function createNameParticles(x, y) {
+                        createExplosion(x, y, 50);
+                        const points = 获取文字点阵(目标姓名);
+                        points.forEach(p => {
+                            particles.push(new Particle(x, y, 45, true, p.x, p.y));
+                        });
+                    }
+
+                    function loop() {
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.globalCompositeOperation = 'lighter';
+
+                        let i = fireworks.length;
+                        while(i--) { fireworks[i].draw(); fireworks[i].update(i); }
+                        let j = particles.length;
+                        while(j--) { particles[j].draw(); particles[j].update(j); }
+
+                        const elapsed = Date.now() - startTime;
+
+                        if (elapsed < 疯狂时刻) {
+                            if (Math.random() < 0.2) {
+                                const sx = canvas.width/2 + random(-300, 300);
+                                const tx = random(100, canvas.width - 100);
+                                const ty = random(50, canvas.height/2);
+                                fireworks.push(new Firework(sx, canvas.height, tx, ty));
+                            }
+                        } else if (elapsed > 清场时刻 && !文字弹已发射) {
+                            文字弹已发射 = true;
+                            fireworks.push(new Firework(canvas.width/2, canvas.height, canvas.width/2, canvas.height/3, true));
+                        } else if (elapsed > 总时长) {
+                            cancelAnimationFrame(animationId);
+                            结束回调();
+                            return;
+                        }
+
+                        animationId = requestAnimationFrame(loop);
+                    }
+
+                    loop();
+                    return () => cancelAnimationFrame(animationId);
+                }
+            }, [配置]);
+
+            if (配置 && 配置.type === 'FIREWORK') {
+                return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[9999] bg-black/60" />;
+            }
+            return null;
+        };
+
+        const 应用程序 = () => {
+            const [当前视图, 切换视图] = useState('大厅'); 
+            const [赛事名称, 设置赛事名称] = useState(() => localStorage.getItem('赛事标题') || '天津麻将冠军大赛');
+            const [是否编辑标题, 设置编辑标题] = useState(false);
+            const [展示详情, 设置展示详情] = useState(false);
+            const 文件上传Ref = useRef(null);
+            const 二维码上传Ref = useRef(null);
+            
+            // 公告栏状态
+            const [公告内容, 设置公告内容] = useState(() => localStorage.getItem('顶部公告') || '🎉 感谢【张三】赞助本次比赛 500 元！🎊 感谢【李四】提供的精美茶歇！🏆 预祝各位选手旗开得胜！');
+            const [正在编辑公告, 设置正在编辑公告] = useState(false);
+
+            // 打赏状态
+            const [打赏弹窗, 设置打赏弹窗] = useState(false);
+            const [打赏源ID, 设置打赏源ID] = useState('');
+            const [打赏目标ID, 设置打赏目标ID] = useState('');
+            const [打赏金额, 设置打赏金额] = useState('');
+
+            // 赞助状态
+            const [赞助弹窗, 设置赞助弹窗] = useState(false);
+            const [赞助二维码, 设置赞助二维码] = useState(() => localStorage.getItem('赞助二维码') || '');
+            const [赞助语, 设置赞助语] = useState(() => localStorage.getItem('赞助语') || '感谢您的赞助');
+            const [正在编辑赞助语, 设置正在编辑赞助语] = useState(false);
+
+            // 互动道具状态
+            const [互动菜单, 设置互动菜单] = useState(null); 
+            const [当前动画, 设置当前动画] = useState(null); 
+
+            const [选手列表, 设置选手列表] = useState(() => {
+                const 缓存 = localStorage.getItem('选手数据');
+                return 缓存 ? JSON.parse(缓存) : [];
+            });
+            const [入座选手ID, 设置入座选手ID] = useState(() => {
+                const 缓存 = localStorage.getItem('活跃选手ID');
+                return 缓存 ? JSON.parse(缓存) : [];
+            });
+
+            const [历史记录, 设置历史记录] = useState([]);
+            const [底分, 设置底分] = useState('');
+            const [赢家ID, 设置赢家ID] = useState(null);
+            const [编辑中ID, 设置编辑中ID] = useState(null);
+            const [编辑姓名, 设置编辑姓名] = useState('');
+
+            // 数据自动保存
+            useEffect(() => {
+                localStorage.setItem('选手数据', JSON.stringify(选手列表));
+                localStorage.setItem('活跃选手ID', JSON.stringify(入座选手ID));
+                localStorage.setItem('赛事标题', 赛事名称);
+                localStorage.setItem('赞助二维码', 赞助二维码);
+                localStorage.setItem('赞助语', 赞助语);
+                localStorage.setItem('顶部公告', 公告内容);
+            }, [选手列表, 入座选手ID, 赛事名称, 赞助二维码, 赞助语, 公告内容]);
+
+            // --- 洗牌算法 ---
+            const 随机打乱 = (array) => {
+                const newArr = [...array];
+                for (let i = newArr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+                }
+                return newArr;
+            };
+
+            // --- 选手逻辑 ---
+            const 添加选手 = () => {
+                const 姓名 = prompt("请输入新选手姓名：");
+                if (!姓名) return;
+                const 新选手 = {
+                    id: Date.now(),
+                    姓名,
+                    赛季总积分: 0,
+                    胜场数: 0,
+                    总对局数: 0,
+                    本场积分: 0, 
+                    本场胜场: 0,
+                    当前局杠数: '0',
+                    是否庄家: false,
+                    是否坐庄: false,
+                    是否拉庄: false
+                };
+                设置选手列表([...选手列表, 新选手]);
+            };
+
+            const 保存姓名修改 = (id) => {
+                设置选手列表(选手列表.map(p => p.id === id ? { ...p, 姓名: 编辑姓名 } : p));
+                设置编辑中ID(null);
+            };
+
+            const 删除选手 = (id) => {
+                if(confirm("确定永久删除该选手及所有数据吗？")) {
+                    设置选手列表(选手列表.filter(p => p.id !== id));
+                    设置入座选手ID(入座选手ID.filter(aid => aid !== id));
+                }
+            };
+
+            const 获取胜率 = (p) => {
+                if (p.总对局数 === 0) return 0.0;
+                return ((p.胜场数 / p.总对局数) * 100);
+            };
+
+            // 互动道具逻辑
+            const 触发互动 = (道具类型, 消耗积分) => {
+                const 选手 = 选手列表.find(p => p.id === 互动菜单);
+                if (!选手) return;
+                if (选手.赛季总积分 < 0) {
+                    alert("⚠️ 您的赛季积分为负，无法兑换互动道具！请努力赢分翻身吧！");
+                    return;
+                }
+                if (选手.赛季总积分 < 消耗积分) {
+                    alert(`⚠️ 积分不足！需要 ${消耗积分} 积分，您当前只有 ${选手.赛季总积分} 积分。`);
+                    return;
+                }
+                设置选手列表(选手列表.map(p => p.id === 互动菜单 ? { ...p, 赛季总积分: p.赛季总积分 - 消耗积分 } : p));
+                设置当前动画({ type: 道具类型, payload: 选手.姓名 });
+                设置互动菜单(null);
+            };
+
+            // 打赏功能逻辑
+            const 执行打赏 = () => {
+                if (!打赏源ID || !打赏目标ID || !打赏金额) return alert("请填写完整信息");
+                if (打赏源ID === 打赏目标ID) return alert("不能打赏给自己");
+                const 金额 = parseInt(打赏金额);
+                if (isNaN(金额) || 金额 <= 0) return alert("请输入有效的打赏金额");
+                const 新列表 = 选手列表.map(p => {
+                    if (p.id === parseInt(打赏源ID)) return { ...p, 赛季总积分: p.赛季总积分 - 金额 };
+                    if (p.id === parseInt(打赏目标ID)) return { ...p, 赛季总积分: p.赛季总积分 + 金额 };
+                    return p;
+                });
+                设置选手列表(新列表);
+                设置打赏弹窗(false);
+                设置打赏金额('');
+                alert("打赏成功！");
+            };
+
+            const 处理二维码上传 = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    if (event.target.result.length > 2000000) {
+                        alert("图片太大了，建议压缩后再上传。");
+                    }
+                    设置赞助二维码(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const 处理导入 = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const text = event.target.result;
+                        const rows = text.split('\n');
+                        if (rows.length < 2) return alert("文件内容似乎为空或格式不正确");
+                        const 导入的选手 = [];
+                        for (let i = 1; i < rows.length; i++) {
+                            const row = rows[i].trim();
+                            if (!row) continue;
+                            const cols = row.split(',');
+                            if (cols.length < 6) continue;
+                            导入的选手.push({
+                                id: Date.now() + i,
+                                姓名: cols[0].trim(),
+                                赛季总积分: parseInt(cols[5]) || 0,
+                                胜场数: parseInt(cols[4]) || 0,
+                                总对局数: parseInt(cols[3]) || 0,
+                                本场积分: 0, 本场胜场: 0, 当前局杠数: '0', 是否庄家: false, 是否坐庄: false, 是否拉庄: false
+                            });
+                        }
+                        if (导入的选手.length === 0) return alert("未能解析出有效选手数据。");
+                        const 覆盖确认 = confirm(`解析成功！共找到 ${导入的选手.length} 条选手数据。覆盖当前数据吗？`);
+                        if (覆盖确认) { 设置选手列表(导入的选手); 设置入座选手ID([]); 设置历史记录([]); } 
+                        else { 设置选手列表([...选手列表, ...导入的选手]); }
+                    } catch (err) { alert("读取文件失败，请重试"); }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+            };
+
+            const 清空所有数据 = () => {
+                if (confirm("您确定要清空所有赛季数据吗？") && confirm("再次确认：开启新赛季？")) {
+                    设置选手列表([]); 设置入座选手ID([]); 设置历史记录([]);
+                }
+            };
+
+            const 排序后的选手库 = useMemo(() => {
+                return [...选手列表].sort((a, b) => 获取胜率(b) - 获取胜率(a));
+            }, [选手列表]);
+
+            // --- 修改这里：确保当前选手的排列顺序严格遵循入座ID的顺序（用于随机座位显示） ---
+            const 当前选手 = useMemo(() => {
+                return 入座选手ID.map(id => 选手列表.find(p => p.id === id)).filter(Boolean);
+            }, [选手列表, 入座选手ID]);
+
+            const 本场排名 = useMemo(() => {
+                return [...当前选手].sort((a, b) => b.本场积分 - a.本场积分);
+            }, [当前选手]);
+
+            const 执行结算 = () => {
+                if (!赢家ID || !底分) return alert("请选定自摸赢家并输入底分");
+                const 底分数值 = parseInt(底分);
+                const 赢家 = 当前选手.find(p => p.id === 赢家ID);
+                const 变动详情 = {};
+                当前选手.forEach(p => { 变动详情[p.id] = 0; });
+                当前选手.forEach(杠主 => {
+                    const 杠数 = parseInt(杠主.当前局杠数) || 0;
+                    if (杠数 <= 0) return;
+                    当前选手.forEach(给钱人 => {
+                        if (给钱人.id === 杠主.id) return;
+                        let 系数 = 1;
+                        if (杠主.是否庄家 || 给钱人.是否庄家) {
+                            系数 *= 2;
+                            const 庄 = 杠主.是否庄家 ? 杠主 : 给钱人;
+                            const 闲 = 杠主.是否庄家 ? 给钱人 : 杠主;
+                            if (庄.是否坐庄) 系数 *= 2;
+                            if (闲.是否拉庄) 系数 *= 2;
+                        }
+                        const 杠分 = 杠数 * 系数;
+                        变动详情[给钱人.id] -= 杠分;
+                        变动详情[杠主.id] += 杠分;
+                    });
+                });
+                当前选手.forEach(输家 => {
+                    if (输家.id === 赢家ID) return;
+                    let 系数 = 1;
+                    if (赢家.是否庄家 || 输家.是否庄家) {
+                        系数 *= 2;
+                        const 庄 = 赢家.是否庄家 ? 赢家 : 输家;
+                        const 闲 = 赢家.是否庄家 ? 输家 : 赢家;
+                        if (庄.是否坐庄) 系数 *= 2;
+                        if (闲.是否拉庄) 系数 *= 2;
+                    }
+                    const 输赢分 = 底分数值 * 系数;
+                    变动详情[输家.id] -= 输赢分;
+                    变动详情[赢家ID] += 输赢分;
+                });
+                const 更新后的选手 = 选手列表.map(p => {
+                    if (变动详情[p.id] !== undefined) {
+                        const 本局获胜 = 变动详情[p.id] > 0;
+                        return {
+                            ...p,
+                            本场积分: p.本场积分 + 变动详情[p.id],
+                            赛季总积分: p.赛季总积分 + 变动详情[p.id],
+                            总对局数: p.总对局数 + 1,
+                            胜场数: p.胜场数 + (本局获胜 ? 1 : 0),
+                            本场胜场: p.本场胜场 + (本局获胜 ? 1 : 0),
+                            当前局杠数: '0' 
+                        };
+                    }
+                    return p;
+                });
+                设置选手列表(更新后的选手);
+                设置历史记录([{ id: Date.now(), 描述: `${赢家.姓名} 自摸结算`, 变动: 变动详情 }, ...历史记录]);
+                设置底分(''); 设置赢家ID(null);
+            };
+
+            const 撤销上局 = () => {
+                if (历史记录.length === 0) return;
+                const 最近记录 = 历史记录[0];
+                const 恢复后的选手 = 选手列表.map(p => {
+                    if (最近记录.变动[p.id] !== undefined) {
+                        const 曾获胜 = 最近记录.变动[p.id] > 0;
+                        return {
+                            ...p,
+                            本场积分: p.本场积分 - 最近记录.变动[p.id],
+                            赛季总积分: p.赛季总积分 - 最近记录.变动[p.id],
+                            总对局数: p.总对局数 - 1,
+                            胜场数: p.胜场数 - (曾获胜 ? 1 : 0),
+                            本场胜场: p.本场胜场 - (曾获胜 ? 1 : 0)
+                        };
+                    }
+                    return p;
+                });
+                设置选手列表(恢复后的选手); 设置历史记录(历史记录.slice(1));
+            };
+
+            const 清空本场 = () => {
+                if (confirm("确定重置本场数据吗？")) {
+                    设置选手列表(选手列表.map(p => ({ 
+                        ...p, 本场积分: 0, 本场胜场: 0, 当前局杠数: '0', 是否庄家: false, 是否坐庄: false, 是否拉庄: false 
+                    })));
+                    设置历史记录([]);
+                }
+            };
+
+            const 导出数据 = (类型) => {
+                let 标题行 = ""; let 数据源 = []; let 文件名 = "";
+                if (类型 === '大厅') {
+                    标题行 = "姓名,段位,胜率%,总局数,胜场数,总积分\n"; 数据源 = 选手列表; 文件名 = `${赛事名称}_赛季总数据.csv`;
+                } else {
+                    标题行 = "姓名,本场胜率%,本场对局,本场胜场,本场积分\n"; 数据源 = 当前选手; 文件名 = `${赛事名称}_本场数据.csv`;
+                }
+                let 内容 = 标题行;
+                数据源.forEach(p => {
+                    const 胜率值 = 获取胜率(p);
+                    const 段位信息 = 获取段位信息(胜率值, p.总对局数);
+                    const 胜率 = 类型 === '大厅' ? 胜率值.toFixed(1) : ((p.本场胜场 / (历史记录.length || 1)) * 100).toFixed(1);
+                    const 局数 = 类型 === '大厅' ? p.总对局数 : 历史记录.length;
+                    const 胜场 = 类型 === '大厅' ? p.胜场数 : p.本场胜场;
+                    const 积分 = 类型 === '大厅' ? p.赛季总积分 : p.本场积分;
+                    if (类型 === '大厅') 内容 += `${p.姓名},${段位信息.称号}(${段位信息.等级}),${胜率},${局数},${胜场},${积分}\n`;
+                    else 内容 += `${p.姓名},${胜率},${局数},${胜场},${积分}\n`;
+                });
+                const blob = new Blob(["\ufeff" + 内容], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = 文件名; link.click();
+            };
+
+            return (
+                <div className={`深绿背景 flex flex-col items-center min-h-screen`}>
+                    {当前动画 && <互动动画层 配置={当前动画} 结束回调={() => 设置当前动画(null)} />}
+
+                    <div className="w-full bg-black/40 border-b border-white/10 backdrop-blur-md h-12 flex items-center relative overflow-hidden group z-50 shadow-lg">
+                        <div className="absolute left-4 z-20 flex items-center gap-2 text-orange-400 font-bold bg-black/20 px-3 py-1 rounded-full backdrop-blur border border-orange-500/20 shadow-lg shadow-orange-500/10">
+                            <图标_喇叭 /> 
+                            <span className="text-xs uppercase tracking-wider hidden md:block text-orange-200">最新战报</span>
+                        </div>
+                        {正在编辑公告 ? (
+                            <div className="w-full px-4 md:px-32 flex items-center justify-center z-30">
+                                <input autoFocus value={公告内容} onChange={e => 设置公告内容(e.target.value)} onBlur={() => 设置正在编辑公告(false)} onKeyDown={e => e.key === 'Enter' && 设置正在编辑公告(false)} className="w-full max-w-2xl bg-white/10 text-white text-sm px-4 py-1.5 rounded-full border border-orange-500 outline-none text-center backdrop-blur-md" />
+                            </div>
+                        ) : (
+                            <div className="w-full overflow-hidden 滚动容器 relative h-full flex items-center cursor-pointer" onClick={() => 设置正在编辑公告(true)}>
+                                <div className="滚动动画 text-orange-200 text-sm md:text-base font-bold tracking-wide drop-shadow-md">{公告内容}</div>
+                            </div>
+                        )}
+                        {!正在编辑公告 && (
+                            <button onClick={() => 设置正在编辑公告(true)} className="absolute right-4 z-20 text-white/20 hover:text-white p-2 bg-black/20 rounded-full"><图标_编辑 /></button>
+                        )}
+                    </div>
+
+                    <div className="w-full flex flex-col items-center p-4 md:p-8 flex-1">
+                        <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-10 gap-4 mt-2">
+                            <div className="text-center md:text-left">
+                                {是否编辑标题 ? (
+                                    <input autoFocus className="bg-transparent text-4xl font-black border-b-2 border-orange-500 outline-none w-full max-w-md" value={赛事名称} onChange={e => 设置赛事名称(e.target.value)} onBlur={() => 设置编辑标题(false)} onKeyDown={e => e.key === 'Enter' && 设置编辑标题(false)} />
+                                ) : (
+                                    <h1 onClick={() => 设置编辑标题(true)} className="text-4xl font-black tracking-tighter cursor-pointer flex items-center gap-3 group">
+                                        {赛事名称}
+                                        <span className="opacity-0 group-hover:opacity-50 transition-opacity"><图标_编辑 /></span>
+                                    </h1>
+                                )}
+                                <p className="text-emerald-400 mt-1 font-bold tracking-[0.2em] text-sm">专业的赛事数据管理中心</p>
+                            </div>
+                            <nav className="flex gap-2 p-1 bg-white/5 rounded-2xl border border-white/10">
+                                <button onClick={() => 切换视图('大厅')} className={`px-10 py-3 rounded-xl font-bold transition-all ${当前视图 === '大厅' ? 'bg-orange-500 text-white' : 'hover:bg-white/10 text-white/60'}`}>选手大厅</button>
+                                <button onClick={() => 切换视图('桌面')} className={`px-10 py-3 rounded-xl font-bold transition-all ${当前视图 === '桌面' ? 'bg-orange-500 text-white' : 'hover:bg-white/10 text-white/60'}`}>比赛桌面</button>
+                            </nav>
+                        </header>
+
+                        {当前视图 === '大厅' ? (
+                            <div className="w-full max-w-6xl 动画弹出">
+                                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                                    <div className="flex items-center gap-2"><div className="w-2 h-8 bg-orange-500 rounded-full"></div><h2 className="text-2xl font-bold text-white">全员赛季排行榜</h2></div>
+                                    <div className="flex gap-3 flex-wrap justify-center items-center">
+                                        <input type="file" id="csv-upload" accept=".csv" className="hidden" onChange={处理导入} ref={文件上传Ref} />
+                                        <button onClick={() => 设置赞助弹窗(true)} className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-2 rounded-xl text-sm font-bold text-black"><图标_爱心 /> 赞助</button>
+                                        <button onClick={() => 设置打赏弹窗(true)} className="flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-600 px-4 py-2 rounded-xl text-sm font-bold"><图标_礼物 /> 积分打赏</button>
+                                        <button onClick={() => 导出数据('大厅')} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm"><图标_下载 /> 导出</button>
+                                        <button onClick={() => 文件上传Ref.current.click()} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm"><图标_上传 /> 导入</button>
+                                        <button onClick={清空所有数据} className="flex items-center gap-2 bg-red-500/10 text-red-300 px-4 py-2 rounded-xl text-sm"><图标_清空 /> 重置赛季</button>
+                                        <button onClick={添加选手} className="ml-2 bg-orange-500 px-6 py-2 rounded-xl font-bold">+ 添加</button>
+                                    </div>
+                                </div>
+
+                                <div className="磨砂面板 rounded-[2rem] overflow-hidden shadow-2xl">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-black/20 text-emerald-300 text-sm border-b border-white/5">
+                                                <th className="p-6">排名</th><th className="p-6">选手段位</th><th className="p-6">选手姓名</th><th className="p-6">当前胜率</th><th className="p-6">总对局 / 胜场</th><th className="p-6">赛季积分</th><th className="p-6 text-center">比赛状态</th><th className="p-6 text-right">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {排序后的选手库.map((p, idx) => {
+                                                const 胜率 = 获取胜率(p); const 段位 = 获取段位信息(胜率, p.总对局数);
+                                                return (
+                                                    <tr key={p.id} className={`group transition-all hover:scale-[1.01] ${段位.样式}`}>
+                                                        <td className="p-6 font-mono font-bold opacity-50 text-xl">#{idx + 1}</td>
+                                                        <td className="p-6">
+                                                            <div className="flex flex-col items-start">
+                                                                <div className={`text-sm font-black tracking-widest uppercase mb-1 ${段位.文字色}`}>{段位.等级} 级 {段位.徽章}</div>
+                                                                <div className={`px-2 py-0.5 rounded-md text-xs font-bold bg-black/20 border border-white/10 ${段位.文字色}`}>{段位.称号}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-6">
+                                                            {编辑中ID === p.id ? (
+                                                                <div className="flex gap-2">
+                                                                    <input autoFocus className="bg-white/10 rounded-lg px-3 py-1 outline-none border border-orange-500 w-24" value={编辑姓名} onChange={e=>设置编辑姓名(e.target.value)} />
+                                                                    <button onClick={()=>保存姓名修改(p.id)} className="bg-orange-500 px-3 rounded-lg text-xs font-bold">OK</button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold text-lg">{p.姓名}</span>
+                                                                    <button onClick={()=>{设置编辑中ID(p.id); 设置编辑姓名(p.姓名);}} className="opacity-0 group-hover:opacity-100 text-white/30 hover:text-white"><图标_编辑 /></button>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-6"><div className="flex items-center gap-2"><span className={`font-bold text-lg ${段位.文字色}`}>{胜率.toFixed(1)}%</span></div></td>
+                                                        <td className="p-6 text-white/50 text-sm">{p.总对局数} 局 / {p.胜场数} 胜</td>
+                                                        <td className={`p-6 font-mono font-black text-xl ${p.赛季总积分 >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>{p.赛季总积分 > 0 ? '+' : ''}{p.赛季总积分}</td>
+                                                        <td className="p-6 text-center">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if(入座选手ID.includes(p.id)) {
+                                                                        设置入座选手ID(入座选手ID.filter(id => id !== p.id));
+                                                                    } else if(入座选手ID.length < 4) {
+                                                                        let 新入座列表 = [...入座选手ID, p.id];
+                                                                        if (新入座列表.length === 4) {
+                                                                            新入座列表 = 随机打乱(新入座列表);
+                                                                            alert("🀄️ 四人已备齐，系统已随机分配座位！");
+                                                                        }
+                                                                        设置入座选手ID(新入座列表);
+                                                                    } else {
+                                                                        alert("一张桌子只能坐 4 位选手");
+                                                                    }
+                                                                }}
+                                                                className={`px-6 py-2 rounded-xl text-xs font-bold transition-all border ${入座选手ID.includes(p.id) ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white'}`}
+                                                            >
+                                                                {入座选手ID.includes(p.id) ? '离开座位' : '入座参赛'}
+                                                            </button>
+                                                        </td>
+                                                        <td className="p-6 text-right"><button onClick={()=>删除选手(p.id)} className="text-white/20 hover:text-red-500"><图标_删除 /></button></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-6 动画弹出">
+                                <div className="lg:col-span-3 space-y-6">
+                                    <div className="磨砂面板 rounded-[2rem] p-6 shadow-xl border-t-4 border-orange-500">
+                                        <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-orange-400">本场实时排行</h2><div className="flex gap-2"><button onClick={() => 设置展示详情(true)}><图标_详情 /></button><button onClick={() => 导出数据('桌面')}><图标_下载 /></button></div></div>
+                                        <div className="space-y-4">
+                                            {本场排名.map((p, i) => (
+                                                <div key={p.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                                                    <div className="flex items-center gap-3"><span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i===0?'bg-orange-500 text-white':'bg-white/10 text-white/40'}`}>{i+1}</span><span className="font-bold">{p.姓名}</span></div>
+                                                    <span className={`font-mono font-bold ${p.本场积分 >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>{p.本场积分 > 0 ? '+' : ''}{p.本场积分}</span>
+                                                </div>
+                                            ))}
+                                            {当前选手.length < 4 && <div className="text-center text-white/20 py-10 italic text-sm">请从大厅勾选 4 人参赛</div>}
+                                        </div>
+                                    </div>
+                                    <div className="磨砂面板 rounded-[2rem] p-4 flex flex-col gap-2 shadow-xl">
+                                        <button onClick={撤销上局} className="w-full py-3 bg-white/5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold"><图标_撤销 /> 撤销上一局记录</button>
+                                        <button onClick={清空本场} className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold italic">清空本场所有数据</button>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-6 space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {当前选手.map(p => (
+                                            <div key={p.id} className={`relative p-8 rounded-[2.5rem] border-2 transition-all ${p.是否庄家 ? 'bg-white text-emerald-900 border-orange-500 scale-105 z-10' : '磨砂面板 border-white/10'}`}>
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div>
+                                                        <div className="font-black text-2xl mb-1">{p.姓名}</div>
+                                                        <div className={`font-mono text-3xl font-black ${p.是否庄家 ? 'text-orange-600' : p.本场积分 >= 0 ? 'text-red-500' : 'text-emerald-500'}`}>{p.本场积分 > 0 ? '+' : ''}{p.本场积分}</div>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2 items-end">
+                                                        <button onClick={() => 设置选手列表(选手列表.map(pl => ({...pl, 是否庄家: pl.id === p.id, 是否坐庄: false, 是否拉庄: false})))} className={`px-4 py-2 rounded-xl text-xs font-bold ${p.是否庄家 ? 'bg-orange-500 text-white' : 'bg-white/10 text-white/40'}`}>{p.是否庄家 ? '当前庄家' : '设为庄家'}</button>
+                                                        <button onClick={(e) => { e.stopPropagation(); 设置互动菜单(互动菜单 === p.id ? null : p.id); }} className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white"><图标_魔法 /></button>
+                                                        {互动菜单 === p.id && (
+                                                            <div className="absolute right-0 top-16 z-50 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl flex flex-col gap-2 min-w-[140px] 动画弹出">
+                                                                <button onClick={() => 触发互动('FIREWORK', 100)} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl transition-colors bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30">
+                                                                    <span className="text-xl">🎆</span><div className="text-left"><div className="text-xs font-bold text-yellow-300">盛世烟花</div><div className="text-[10px] text-white/40">-100 积分</div></div>
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <span className="text-[10px] font-bold opacity-40 uppercase">本局所得杠数</span>
+                                                    <input type="number" value={p.当前局杠数} onChange={e => 设置选手列表(选手列表.map(pl => pl.id === p.id ? {...pl, 当前局杠数: e.target.value} : pl))} className={`w-full bg-black/5 rounded-2xl py-3 text-center text-xl font-bold focus:outline-none border-2 ${p.是否庄家 ? 'border-emerald-100' : 'border-white/5 focus:border-orange-500'}`} placeholder="0" />
+                                                    <button onClick={() => 设置选手列表(选手列表.map(pl => pl.id === p.id ? {...pl, [pl.是否庄家 ? '是否坐庄' : '是否拉庄']: !(pl.是否庄家 ? pl.是否坐庄 : pl.是否拉庄)} : pl))} className={`w-full py-3 rounded-2xl text-xs font-bold border-2 transition-all ${p.是否庄家 ? (p.是否坐庄 ? 'bg-orange-100 border-orange-500 text-orange-700' : 'bg-black/5 border-transparent text-black/20') : (p.是否拉庄 ? 'bg-blue-100 border-blue-500 text-blue-700' : 'bg-white/5 border-transparent text-white/20')}`}>
+                                                        {p.是否庄家 ? (p.是否坐庄 ? '正在坐庄 (x2)' : '点击坐庄') : (p.是否拉庄 ? '正在拉庄 (x2)' : '点击拉庄')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="磨砂面板 rounded-[2.5rem] p-10 space-y-8 border-t-4 border-orange-500 shadow-2xl relative overflow-hidden">
+                                        <div className="grid grid-cols-4 gap-3">
+                                            {当前选手.map(p => (
+                                                <button key={p.id} onClick={() => 设置赢家ID(p.id)} className={`py-4 rounded-2xl text-xs font-bold border-2 ${赢家ID === p.id ? 'bg-orange-500 text-white border-orange-400 scale-105 shadow-xl' : 'bg-white/5 border-white/5 hover:border-orange-500/50 text-white/60'}`}>{p.姓名} 自摸</button>
+                                            ))}
+                                        </div>
+                                        <div className="flex flex-col md:flex-row gap-4">
+                                            <div className="flex-1 space-y-2"><span className="text-xs font-bold text-orange-400 ml-1">基础底分</span><input type="number" placeholder="输入分值" value={底分} onChange={e=>设置底分(e.target.value)} className="w-full bg-white/10 border-2 border-white/10 rounded-2xl py-4 text-center text-2xl font-black focus:border-orange-500 focus:outline-none" /></div>
+                                            <button onClick={执行结算} className="flex-[1.5] bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl font-black text-xl shadow-xl active:scale-95 text-white mt-auto py-4">确认本局结算</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-3">
+                                    <div className="磨砂面板 rounded-[2rem] p-6 h-[650px] flex flex-col shadow-xl border-b-4 border-white/5">
+                                        <h2 className="font-bold text-emerald-400 mb-6 flex justify-between items-center px-2"><span>本场局数流水</span><span className="text-[10px] font-black text-white/10 uppercase italic">第 {历史记录.length} 局</span></h2>
+                                        <div className="flex-1 overflow-y-auto space-y-4 pr-2 px-1">
+                                            {历史记录.map(h => (
+                                                <div key={h.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 text-[11px] 动画弹出">
+                                                    <div className="flex justify-between items-center mb-3"><span className="text-white/20 font-mono">{new Date(h.id).toLocaleTimeString()}</span><span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-lg font-bold">{h.描述}</span></div>
+                                                    <div className="space-y-2">
+                                                        {当前选手.map(p => (
+                                                            <div key={p.id} className="flex justify-between items-center"><span className="text-white/60">{p.姓名}</span><span className={`font-mono font-bold text-sm ${h.变动[p.id] > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{h.变动[p.id] > 0 ? '+' : ''}{h.变动[p.id]}</span></div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {历史记录.length === 0 && <div className="text-center text-white/10 mt-20 italic">等待第一局开始...</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 修改这里：增加了“本场胜率”显示 */}
+                        {展示详情 && (
+                            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4" onClick={() => 设置展示详情(false)}>
+                                <div className="磨砂面板 w-full max-w-5xl p-10 rounded-[3rem] 动画弹出" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-8"><h2 className="text-3xl font-black italic">本场选手详细统计</h2><button onClick={() => 设置展示详情(false)} className="text-white/40 hover:text-white text-2xl">×</button></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {当前选手.map(p => {
+                                            const 本场总局数 = 历史记录.length;
+                                            const 本场胜率 = 本场总局数 > 0 ? ((p.本场胜场 / 本场总局数) * 100).toFixed(1) : "0.0";
+                                            return (
+                                                <div key={p.id} className="bg-white/5 p-6 rounded-3xl border border-white/10 text-center space-y-6">
+                                                    <div className="text-xl font-bold text-orange-400 border-b border-white/10 pb-2">{p.姓名}</div>
+                                                    <div className="space-y-1">
+                                                        <div className="text-[10px] text-white/30 uppercase font-black tracking-widest">本场积分</div>
+                                                        <div className={`text-4xl font-mono font-black ${p.本场积分 >= 0 ? 'text-red-500' : 'text-emerald-400'}`}>
+                                                            {p.本场积分 > 0 ? '+' : ''}{p.本场积分}
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2 border-t border-white/5 pt-4">
+                                                        <div className="text-left">
+                                                            <div className="text-[9px] text-white/30 uppercase font-bold">本场胜率</div>
+                                                            <div className="text-lg font-black text-orange-300">{本场胜率}%</div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-[9px] text-white/30 uppercase font-bold">本场胜局</div>
+                                                            <div className="text-lg font-black text-white">{p.本场胜场} <span className="text-[10px] font-normal text-white/20">/ {本场总局数}</span></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="mt-10 text-center text-white/20 text-xs">
+                                        提示：胜率根据本场已完成的局数流水计算
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {打赏弹窗 && (
+                            <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => 设置打赏弹窗(false)}>
+                                <div className="bg-[#1a2e26] border border-white/10 w-full max-w-md p-8 rounded-[2rem] shadow-2xl 动画弹出" onClick={e => e.stopPropagation()}>
+                                    <div className="text-center mb-6"><h2 className="text-2xl font-bold text-white">积分打赏转账</h2></div>
+                                    <div className="space-y-4">
+                                        <select value={打赏源ID} onChange={e => 设置打赏源ID(e.target.value)} className="w-full bg-black/20 text-white border border-white/10 rounded-xl p-3"><option value="">请选择支付选手...</option>{选手列表.map(p => (<option key={p.id} value={p.id}>{p.姓名} (积分: {p.赛季总积分})</option>))}</select>
+                                        <select value={打赏目标ID} onChange={e => 设置打赏目标ID(e.target.value)} className="w-full bg-black/20 text-white border border-white/10 rounded-xl p-3"><option value="">请选择收款选手...</option>{选手列表.filter(p => p.id != 打赏源ID).map(p => (<option key={p.id} value={p.id}>{p.姓名}</option>))}</select>
+                                        <input type="number" value={打赏金额} onChange={e => 设置打赏金额(e.target.value)} placeholder="输入打赏金额" className="w-full bg-black/20 text-white border border-white/10 rounded-xl p-3 outline-none" />
+                                        <button onClick={执行打赏} className="w-full bg-pink-600 hover:bg-pink-500 py-4 rounded-xl font-bold">确认打赏</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {赞助弹窗 && (
+                            <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={() => 设置赞助弹窗(false)}>
+                                <div className="bg-[#1a2e26] border border-white/10 w-full max-w-sm p-8 rounded-[2rem] shadow-2xl flex flex-col items-center 动画弹出" onClick={e => e.stopPropagation()}>
+                                    <h2 onClick={() => 设置正在编辑赞助语(true)} className="text-2xl font-bold text-white mb-6 cursor-pointer hover:text-amber-400">{赞助语}</h2>
+                                    <div className="w-64 h-64 bg-white/10 rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center cursor-pointer relative" onClick={() => 二维码上传Ref.current.click()}>
+                                        {赞助二维码 ? <img src={赞助二维码} className="w-full h-full object-cover" /> : <span className="text-sm font-bold text-white/50">点击上传收款码</span>}
+                                    </div>
+                                    <input type="file" ref={二维码上传Ref} accept="image/*" className="hidden" onChange={处理二维码上传} />
+                                    <button onClick={() => 设置赞助弹窗(false)} className="mt-6 text-white/40">关闭窗口</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<应用程序 />);
+    </script>
+</body>
+</html>
